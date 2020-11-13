@@ -1,0 +1,16 @@
+<configuration>
+  <appender name="json-stdout" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+  </appender>
+  <appender name="text-stdout" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%highlight(%5level) %cyan(%logger{15}): %msg %n%rEx</pattern>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="json-stdout"/>
+  </root>
+  <logger name="org.http4s.blaze" level="WARN"/>
+  <logger name="net.andimiller" level="INFO"/>
+</configuration>
