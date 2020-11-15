@@ -30,19 +30,18 @@ class Routes[F[_]: Sync: ConcurrentEffect: ContextShift: Timer: Logger](
   val getBucket: HttpRoutes[F] = API.getBucket.toRoutes { bucket =>
     classes
       .find(_.name == bucket)
-      .fold[API.GetBucketResponse](API.GetBucketResponse.NotFound)(API.GetBucketResponse.Found(_))
-      .asRight[Unit]
+      .toRight(API.NotFound)
       .pure[F]
   }
 
-  val putIds = API.putIds.toRoutes {
+  val putIds: HttpRoutes[F] = API.putIds.toRoutes {
     case (bucket, identifier, ids) =>
       val key = s"${bucket}_${identifier}"
       EitherT
         .fromEither[F](
           classes
             .find(_.name == bucket)
-            .toRight(API.Errors.NotFound)
+            .toRight(API.NotFound)
         )
         .semiflatMap { bucketClass =>
           for {
@@ -63,17 +62,31 @@ class Routes[F[_]: Sync: ConcurrentEffect: ContextShift: Timer: Logger](
         .fromEither[F](
           classes
             .find(_.name == bucket)
-            .toRight(API.Errors.NotFound)
+            .toRight(API.NotFound)
         )
         .semiflatMap { _ => redis.pfCount(key) }
         .value
   }
 
-  val endpoints = listBucketClasses <+> getBucket <+> putIds <+> getCardinality
+  val clearCardinality = API.clearCardinality.toRoutes {
+    case (bucket, identifier) =>
+      val key = s"${bucket}_${identifier}"
+      EitherT
+        .fromEither[F](
+          classes
+            .find(_.name == bucket)
+            .toRight(API.NotFound)
+        )
+        .semiflatMap { _ => redis.del(key) }
+        .as(API.Message("Bucket cleared"))
+        .value
+  }
 
-  def serve(ec: ExecutionContext) =
+  val endpoints = listBucketClasses <+> getBucket <+> putIds <+> getCardinality <+> clearCardinality
+
+  def serve(ec: ExecutionContext, port: Int) =
     BlazeServerBuilder[F](ec)
-      .bindHttp(8888, "0.0.0.0")
+      .bindHttp(port, "0.0.0.0")
       .withHttpApp(
         Router("/" -> (endpoints <+> new SwaggerHttp4s(API.openApiYaml).routes[F])).orNotFound
       )

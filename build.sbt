@@ -13,6 +13,7 @@ resolvers +=
 val redis4catsVersion = "0.0.0+1-f003ef4b-SNAPSHOT"
 
 libraryDependencies ++= List(
+  "com.monovore"                %% "decline"                  % "1.3.0",
   "dev.profunktor"              %% "redis4cats-effects"       % redis4catsVersion,
   "dev.profunktor"              %% "redis4cats-log4cats"      % redis4catsVersion,
   "com.softwaremill.sttp.tapir" %% "tapir-core"               % "0.17.0-M8",

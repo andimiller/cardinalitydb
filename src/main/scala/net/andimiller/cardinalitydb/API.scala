@@ -12,6 +12,7 @@ import sttp.tapir.docs.openapi._
 import sttp.tapir.json.circe._
 import sttp.tapir.openapi.Info
 import sttp.tapir.openapi.circe.yaml._
+import io.circe.generic.semiauto._
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -28,67 +29,105 @@ object API {
       listBucketClasses,
       getBucket,
       putIds,
-      getCardinality
+      getCardinality,
+      clearCardinality
     ).toOpenAPI(info).toYaml
 
   lazy val listBucketClasses: Endpoint[Unit, Unit, List[BucketClass], Any] =
     endpoint.get
+      .name("listBucketClasses")
       .in("db")
       .out(jsonBody[List[BucketClass]])
       .description("List all Bucket Classes configured in this service")
 
-  object Errors {
-    case object NotFound extends GetBucketResponse {
-      implicit val dec: Decoder[NotFound.type] = Decoder.const(NotFound)
-      implicit val enc: Encoder[NotFound.type] = _ =>
-        Json.obj("error" -> Json.fromString("could not find bucket"))
-    }
+  case class Error(error: String)
+  object Error {
+    implicit val dec: Decoder[Error] = deriveDecoder
+    implicit val enc: Encoder[Error] = deriveEncoder
   }
 
-  sealed trait GetBucketResponse
-  object GetBucketResponse {
-    val NotFound = Errors.NotFound
-    case class Found(bucket: BucketClass) extends GetBucketResponse
-    object Found {
-      implicit val dec: Decoder[Found] = Decoder[BucketClass].map(Found(_))
-      implicit val enc: Encoder[Found] = Encoder[BucketClass].contramap(_.bucket)
-    }
+  case class Message(message: String)
+  object Message {
+    implicit val dec: Decoder[Message] = deriveDecoder
+    implicit val enc: Encoder[Message] = deriveEncoder
   }
 
-  lazy val getBucket: Endpoint[String, Unit, GetBucketResponse, Any] =
+  val NotFound = Error("Not Found")
+
+  lazy val getBucket: Endpoint[String, Error, BucketClass, Any] =
     endpoint.get
+      .name("getBucketClass")
       .in("db")
       .in(path[String]("bucketClass"))
-      .out(
-        oneOf[GetBucketResponse](
+      .errorOut(
+        oneOf(
           statusMapping(
             StatusCode.NotFound,
-            jsonBody[Errors.NotFound.type]
-              .description("not found")),
+            jsonBody[Error]
+              .description("not found")
+          )
+        )
+      )
+      .out(
+        oneOf(
           statusMapping(
             StatusCode.Ok,
-            jsonBody[GetBucketResponse.Found]
-              .description("the bucket class queried"))
+            jsonBody[BucketClass]
+              .description("the bucket class queried")
+          )
         )
       )
       .description("Get details on a specific Bucket Class")
 
-  lazy val putIds: Endpoint[(String, String, List[String]), Errors.NotFound.type, Long, Any] =
+  lazy val putIds: Endpoint[(String, String, List[String]), Error, Long, Any] =
     endpoint.post
+      .name("insertItems")
       .in("db")
       .in(path[String]("bucketClass"))
       .in(path[String]("bucketName"))
       .in(jsonBody[List[String]])
-      .out(jsonBody[Long])
-      .errorOut(jsonBody[Errors.NotFound.type])
+      .out(jsonBody[Long].description("Count of the cardinality of the bucket"))
+      .errorOut(
+        oneOf(
+          statusMapping(
+            StatusCode.NotFound,
+            jsonBody[Error]
+          )
+        )
+      )
       .description("Add some IDs to a bucket and get the new estimated cardinality")
 
-  lazy val getCardinality: Endpoint[(String, String), Errors.NotFound.type, Long, Any] =
+  lazy val getCardinality: Endpoint[(String, String), Error, Long, Any] =
     endpoint.get
+      .name("getCardinality")
       .in("db")
       .in(path[String]("bucketClass"))
       .in(path[String]("bucketName"))
       .out(jsonBody[Long])
-      .errorOut(jsonBody[Errors.NotFound.type])
+      .errorOut(
+        oneOf(
+          statusMapping(
+            StatusCode.NotFound,
+            jsonBody[Error]
+          )
+        )
+      )
       .description("Get the estimated cardinality of a bucket")
+
+  lazy val clearCardinality: Endpoint[(String, String), Error, Message, Any] =
+    endpoint.delete
+      .name("clearCardinality")
+      .in("db")
+      .in(path[String]("bucketClass"))
+      .in(path[String]("bucketName"))
+      .out(jsonBody[Message])
+      .errorOut(
+        oneOf(
+          statusMapping(
+            StatusCode.NotFound,
+            jsonBody[Error]
+          )
+        )
+      )
+      .description("Clear a cardinality bucket")
 }
