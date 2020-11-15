@@ -14,7 +14,7 @@ import sttp.tapir.openapi.Info
 import sttp.tapir.openapi.circe.yaml._
 import io.circe.generic.semiauto._
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 object API {
   implicit val finiteDurationSchema: Schema[FiniteDuration] = Schema(SchemaType.SString)
@@ -58,7 +58,7 @@ object API {
     endpoint.get
       .name("getBucketClass")
       .in("db")
-      .in(path[String]("bucketClass"))
+      .in(path[String]("bucketClass").example("main"))
       .errorOut(
         oneOf(
           statusMapping(
@@ -73,6 +73,7 @@ object API {
           statusMapping(
             StatusCode.Ok,
             jsonBody[BucketClass]
+              .example(BucketClass("main", 10.minutes.some))
               .description("the bucket class queried")
           )
         )
