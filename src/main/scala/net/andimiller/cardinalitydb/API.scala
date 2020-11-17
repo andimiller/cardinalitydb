@@ -17,8 +17,6 @@ import io.circe.generic.semiauto._
 import scala.concurrent.duration._
 
 object API {
-  implicit val finiteDurationSchema: Schema[FiniteDuration] = Schema(SchemaType.SString)
-
   private lazy val info = Info(
     "CardinalityDB: the cardinality database service",
     "1.0"
